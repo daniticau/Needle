@@ -27,17 +27,17 @@ enum OverlayLayout: String, CaseIterable {
                 padding: 10,
                 artworkSide: 70,
                 columnSpacing: 10,
-                cornerRadius: 18
+                cornerRadius: 7
             )
         case .medium:
             return OverlayMetrics(
                 surfaceWidth: 242,
-                surfaceHeight: 64,
+                surfaceHeight: 62,
                 shadowMargin: 8,
-                padding: 9,
+                padding: 8,
                 artworkSide: 0,
                 columnSpacing: 0,
-                cornerRadius: 17
+                cornerRadius: 6
             )
         case .small:
             return OverlayMetrics(
@@ -47,7 +47,7 @@ enum OverlayLayout: String, CaseIterable {
                 padding: 6,
                 artworkSide: 0,
                 columnSpacing: 0,
-                cornerRadius: 16
+                cornerRadius: 6
             )
         }
     }
@@ -197,12 +197,13 @@ struct OverlayView: View {
                     }
                 }
                 .frame(width: metrics.contentWidth, alignment: .leading)
+                .offset(y: -4)
 
                 Spacer(minLength: 2)
 
                 progress
                     .frame(width: metrics.contentWidth, height: 13, alignment: .bottom)
-                    .padding(.bottom, 4)
+                    .offset(y: -6)
             }
             .frame(width: metrics.contentWidth, height: metrics.artworkSide, alignment: .top)
         }
@@ -216,6 +217,7 @@ struct OverlayView: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .padding(.leading, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .shadow(color: .black.opacity(0.40), radius: 2, x: 0, y: 1)
 
@@ -231,7 +233,7 @@ struct OverlayView: View {
 
             Spacer(minLength: 5)
 
-            HStack(alignment: .center, spacing: 9) {
+            HStack(alignment: .center, spacing: 8) {
                 controls(
                     buttonScale: .medium,
                     spacing: 6,
@@ -406,7 +408,16 @@ private struct ControlButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
         .background(.thinMaterial, in: Circle())
-        .background(Color.white.opacity(0.04), in: Circle())
+        .background(Color.black.opacity(0.08), in: Circle())
+        .overlay {
+            Circle()
+                .strokeBorder(Color.white.opacity(0.34), lineWidth: 1)
+        }
+        .overlay {
+            Circle()
+                .strokeBorder(Color.black.opacity(0.16), lineWidth: 0.5)
+                .padding(0.5)
+        }
     }
 
     private var symbolSize: CGFloat {

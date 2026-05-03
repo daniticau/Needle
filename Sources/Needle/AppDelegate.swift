@@ -46,8 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panel.contentView = hostingView
         panel.orderFrontRegardless()
-        panel.setFrame(Self.defaultFrame(for: panel), display: true)
+        panel.setFrame(Self.launchFrame(for: panel), display: true)
         self.panel = panel
+        configurePanelPositionTracking(panel)
 
         configureMenuBarItem(player: player)
         configureLayoutSubscription()
@@ -55,10 +56,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let panel {
+            Self.savePanelOrigin(panel.frame.origin)
+        }
         player?.stop()
         if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
         }
+        NotificationCenter.default.removeObserver(self)
     }
 
     @objc private func toggleOverlay() {
@@ -68,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.orderOut(nil)
         } else {
             panel.orderFrontRegardless()
-            panel.setFrame(Self.defaultFrame(for: panel), display: true)
+            panel.setFrame(Self.launchFrame(for: panel), display: true)
         }
 
         updateOverlayMenuItem()
@@ -97,6 +102,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitNeedle() {
         NSApp.terminate(nil)
+    }
+
+    @objc private func panelDidMove(_ notification: Notification) {
+        guard let movedPanel = notification.object as? NSPanel,
+              movedPanel === panel else {
+            return
+        }
+
+        Self.savePanelOrigin(movedPanel.frame.origin)
+    }
+
+    private func configurePanelPositionTracking(_ panel: NSPanel) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(panelDidMove(_:)),
+            name: NSWindow.didMoveNotification,
+            object: panel
+        )
     }
 
     private func configureMenuBarItem(player: SpotifyPlayer) {
@@ -242,6 +265,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         return NSRect(origin: origin, size: size)
     }
+
+    private static func launchFrame(for panel: NSPanel) -> NSRect {
+        let size = panel.frame.size
+        let origin = savedPanelOrigin() ?? defaultFrame(for: panel).origin
+        return clampedFrame(origin: origin, size: size)
+    }
+
+    private static func savePanelOrigin(_ origin: NSPoint) {
+        UserDefaults.standard.set(origin.x, forKey: overlayOriginXKey)
+        UserDefaults.standard.set(origin.y, forKey: overlayOriginYKey)
+    }
+
+    private static func savedPanelOrigin() -> NSPoint? {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: overlayOriginXKey) != nil,
+              defaults.object(forKey: overlayOriginYKey) != nil else {
+            return nil
+        }
+
+        return NSPoint(
+            x: defaults.double(forKey: overlayOriginXKey),
+            y: defaults.double(forKey: overlayOriginYKey)
+        )
+    }
+
+    private static func clampedFrame(origin: NSPoint, size: NSSize) -> NSRect {
+        let proposedFrame = NSRect(origin: origin, size: size)
+        let visibleFrame = screen(for: proposedFrame)?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let x = min(
+            max(origin.x, visibleFrame.minX),
+            max(visibleFrame.minX, visibleFrame.maxX - size.width)
+        )
+        let y = min(
+            max(origin.y, visibleFrame.minY),
+            max(visibleFrame.minY, visibleFrame.maxY - size.height)
+        )
+
+        return NSRect(origin: NSPoint(x: x, y: y), size: size)
+    }
+
+    private static func screen(for frame: NSRect) -> NSScreen? {
+        let center = NSPoint(x: frame.midX, y: frame.midY)
+        if let containingScreen = NSScreen.screens.first(where: { $0.frame.contains(center) }) {
+            return containingScreen
+        }
+
+        return NSScreen.screens.max { lhs, rhs in
+            area(of: lhs.frame.intersection(frame)) < area(of: rhs.frame.intersection(frame))
+        }
+    }
+
+    private static func area(of rect: NSRect) -> CGFloat {
+        guard !rect.isNull else { return 0 }
+        return rect.width * rect.height
+    }
+
+    private static let overlayOriginXKey = "Needle.overlayOriginX"
+    private static let overlayOriginYKey = "Needle.overlayOriginY"
 
     private static func truncatedMenuTitle(_ value: String) -> String {
         let limit = 54
