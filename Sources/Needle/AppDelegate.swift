@@ -10,12 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var nowPlayingMenuItem: NSMenuItem?
     private var overlayMenuItem: NSMenuItem?
-    private var layoutMenuItems: [OverlayLayout: NSMenuItem] = [:]
+    private var rotateLongTextMenuItem: NSMenuItem?
     private var playPauseMenuItem: NSMenuItem?
     private var previousMenuItem: NSMenuItem?
     private var nextMenuItem: NSMenuItem?
     private var trackSubscription: AnyCancellable?
-    private var layoutSubscription: AnyCancellable?
+    private var rotateLongTextSubscription: AnyCancellable?
 
     static func main() {
         let app = NSApplication.shared
@@ -34,8 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hostingView.frame = NSRect(
             x: 0,
             y: 0,
-            width: settings.layout.metrics.width,
-            height: settings.layout.metrics.height
+            width: settings.overlaySize.width,
+            height: settings.overlaySize.height
         )
 
         let panel = FloatingOverlayPanel(
@@ -44,26 +44,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
+        panel.minSize = OverlaySizeRules.minimumSize
+        panel.maxSize = OverlaySizeRules.maximumSize
         panel.contentView = hostingView
         panel.orderFrontRegardless()
         panel.setFrame(Self.launchFrame(for: panel), display: true)
         self.panel = panel
-        configurePanelPositionTracking(panel)
 
         configureMenuBarItem(player: player)
-        configureLayoutSubscription()
+        configureRotateLongTextSubscription()
         player.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         if let panel {
-            Self.savePanelOrigin(panel.frame.origin)
+            OverlayPositionStore.save(origin: panel.frame.origin)
+            OverlayPositionStore.save(size: panel.frame.size)
         }
         player?.stop()
         if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
         }
-        NotificationCenter.default.removeObserver(self)
     }
 
     @objc private func toggleOverlay() {
@@ -91,35 +92,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         player?.nextTrack()
     }
 
-    @objc private func setLayout(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String,
-              let layout = OverlayLayout(rawValue: rawValue) else {
-            return
-        }
-
-        settings.layout = layout
+    @objc private func toggleRotateLongText() {
+        settings.rotatesLongText.toggle()
     }
 
     @objc private func quitNeedle() {
         NSApp.terminate(nil)
-    }
-
-    @objc private func panelDidMove(_ notification: Notification) {
-        guard let movedPanel = notification.object as? NSPanel,
-              movedPanel === panel else {
-            return
-        }
-
-        Self.savePanelOrigin(movedPanel.frame.origin)
-    }
-
-    private func configurePanelPositionTracking(_ panel: NSPanel) {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(panelDidMove(_:)),
-            name: NSWindow.didMoveNotification,
-            object: panel
-        )
     }
 
     private func configureMenuBarItem(player: SpotifyPlayer) {
@@ -151,18 +129,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let layoutMenu = NSMenu()
-        for layout in OverlayLayout.allCases {
-            let item = NSMenuItem(title: layout.title, action: #selector(setLayout(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = layout.rawValue
-            layoutMenu.addItem(item)
-            layoutMenuItems[layout] = item
-        }
-
-        let layoutMenuItem = NSMenuItem(title: "Layout", action: nil, keyEquivalent: "")
-        layoutMenuItem.submenu = layoutMenu
-        menu.addItem(layoutMenuItem)
+        let rotateLongTextMenuItem = NSMenuItem(
+            title: "Rotate Long Text",
+            action: #selector(toggleRotateLongText),
+            keyEquivalent: ""
+        )
+        rotateLongTextMenuItem.target = self
+        menu.addItem(rotateLongTextMenuItem)
+        self.rotateLongTextMenuItem = rotateLongTextMenuItem
 
         menu.addItem(.separator())
 
@@ -197,15 +171,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         updateMenuBarItem(for: player.track)
         updateOverlayMenuItem()
-        updateLayoutMenuItems()
+        updateRotateLongTextMenuItem()
     }
 
-    private func configureLayoutSubscription() {
-        layoutSubscription = settings.$layout
+    private func configureRotateLongTextSubscription() {
+        rotateLongTextSubscription = settings.$rotatesLongText
             .receive(on: RunLoop.main)
-            .sink { [weak self] layout in
-                self?.resizePanel(for: layout)
-                self?.updateLayoutMenuItems()
+            .sink { [weak self] _ in
+                self?.updateRotateLongTextMenuItem()
             }
     }
 
@@ -233,26 +206,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayMenuItem?.title = panel?.isVisible == true ? "Hide Overlay" : "Show Overlay"
     }
 
-    private func updateLayoutMenuItems() {
-        for (layout, item) in layoutMenuItems {
-            item.state = layout == settings.layout ? .on : .off
-        }
-    }
-
-    private func resizePanel(for layout: OverlayLayout) {
-        guard let panel else { return }
-
-        let metrics = layout.metrics
-        let currentFrame = panel.frame
-        let newSize = NSSize(width: metrics.width, height: metrics.height)
-        let newOrigin = NSPoint(
-            x: currentFrame.maxX - newSize.width,
-            y: currentFrame.maxY - newSize.height
-        )
-        let newFrame = NSRect(origin: newOrigin, size: newSize)
-
-        panel.contentView?.frame = NSRect(origin: .zero, size: newSize)
-        panel.setFrame(newFrame, display: true, animate: true)
+    private func updateRotateLongTextMenuItem() {
+        rotateLongTextMenuItem?.state = settings.rotatesLongText ? .on : .off
     }
 
     private static func defaultFrame(for panel: NSPanel) -> NSRect {
@@ -267,26 +222,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private static func launchFrame(for panel: NSPanel) -> NSRect {
         let size = panel.frame.size
-        let origin = savedPanelOrigin() ?? defaultFrame(for: panel).origin
+        let origin = OverlayPositionStore.savedOrigin() ?? defaultFrame(for: panel).origin
         return clampedFrame(origin: origin, size: size)
-    }
-
-    private static func savePanelOrigin(_ origin: NSPoint) {
-        UserDefaults.standard.set(origin.x, forKey: overlayOriginXKey)
-        UserDefaults.standard.set(origin.y, forKey: overlayOriginYKey)
-    }
-
-    private static func savedPanelOrigin() -> NSPoint? {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: overlayOriginXKey) != nil,
-              defaults.object(forKey: overlayOriginYKey) != nil else {
-            return nil
-        }
-
-        return NSPoint(
-            x: defaults.double(forKey: overlayOriginXKey),
-            y: defaults.double(forKey: overlayOriginYKey)
-        )
     }
 
     private static func clampedFrame(origin: NSPoint, size: NSSize) -> NSRect {
@@ -321,9 +258,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !rect.isNull else { return 0 }
         return rect.width * rect.height
     }
-
-    private static let overlayOriginXKey = "Needle.overlayOriginX"
-    private static let overlayOriginYKey = "Needle.overlayOriginY"
 
     private static func menuBarIcon() -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18))
@@ -378,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 final class FloatingOverlayPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
     override init(
