@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.player = player
 
         let contentView = OverlayView(player: player, settings: settings)
-        let hostingView = DraggableHostingView(rootView: contentView)
+        let hostingView = NSHostingView(rootView: contentView)
         hostingView.frame = NSRect(
             x: 0,
             y: 0,
@@ -334,10 +334,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-final class DraggableHostingView<Content: View>: NSHostingView<Content> {
-    override var mouseDownCanMoveWindow: Bool { true }
-}
-
 final class FloatingOverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -354,7 +350,7 @@ final class FloatingOverlayPanel: NSPanel {
         hasShadow = false
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         hidesOnDeactivate = false
         worksWhenModal = true
         titleVisibility = .hidden

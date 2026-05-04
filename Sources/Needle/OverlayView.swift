@@ -27,7 +27,7 @@ enum OverlayLayout: String, CaseIterable {
                 padding: 10,
                 artworkSide: 70,
                 columnSpacing: 10,
-                cornerRadius: 7
+                cornerRadius: 9
             )
         case .medium:
             return OverlayMetrics(
@@ -110,18 +110,30 @@ struct OverlayView: View {
     @State private var volumePosition: Double = 50
     @State private var isScrubbing = false
     @State private var isVolumeScrubbing = false
+    @State private var overlayWindow: NSWindow?
 
     var body: some View {
         let metrics = settings.layout.metrics
 
         ZStack {
-            layoutContent(for: settings.layout, metrics: metrics)
-            .padding(metrics.padding)
+            ZStack {
+                GlassPanel(cornerRadius: metrics.cornerRadius)
+                    .contentShape(RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous))
+                    .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
+
+                layoutContent(for: settings.layout, metrics: metrics)
+                    .padding(metrics.padding)
+                    .frame(width: metrics.surfaceWidth, height: metrics.surfaceHeight)
+            }
             .frame(width: metrics.surfaceWidth, height: metrics.surfaceHeight)
-            .background(GlassPanel(cornerRadius: metrics.cornerRadius))
-            .contentShape(RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous))
         }
         .frame(width: metrics.width, height: metrics.height)
+        .background(
+            WindowAccessor { window in
+                overlayWindow = window
+            }
+            .allowsHitTesting(false)
+        )
         .contextMenu {
             Button("Big Layout") {
                 settings.layout = .big
@@ -169,41 +181,26 @@ struct OverlayView: View {
         HStack(alignment: .top, spacing: metrics.columnSpacing) {
             ArtworkView(image: artwork.image, isAvailable: player.track.isAvailable)
                 .frame(width: metrics.artworkSide, height: metrics.artworkSide)
+                .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
 
             VStack(alignment: .leading, spacing: 0) {
-                trackInfo
+                bigMetadataHeader(metrics: metrics)
                     .frame(width: metrics.contentWidth, alignment: .leading)
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 0)
 
-                HStack(alignment: .bottom, spacing: 8) {
-                    controls(
-                        buttonScale: .regular,
-                        spacing: 6,
-                        fillsWidth: false
-                    )
-
-                    Spacer(minLength: 6)
-
-                    VStack(alignment: .trailing, spacing: 3) {
-                        volumeControl
-                            .frame(width: 62, alignment: .trailing)
-
-                        Text(timePairString(position: scrubPosition, duration: player.track.duration))
-                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .frame(width: 72, alignment: .trailing)
-                    }
-                }
+                controls(
+                    buttonScale: .regular,
+                    spacing: 6,
+                    fillsWidth: false
+                )
                 .frame(width: metrics.contentWidth, alignment: .leading)
-                .offset(y: -4)
 
-                Spacer(minLength: 2)
+                Spacer(minLength: 0)
 
                 progress
                     .frame(width: metrics.contentWidth, height: 13, alignment: .bottom)
-                    .offset(y: -6)
             }
             .frame(width: metrics.contentWidth, height: metrics.artworkSide, alignment: .top)
         }
@@ -212,14 +209,15 @@ struct OverlayView: View {
 
     private func mediumLayout(metrics: OverlayMetrics) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Text(player.track.title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .padding(.leading, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .shadow(color: .black.opacity(0.40), radius: 2, x: 0, y: 1)
+                    .contentShape(Rectangle())
+                    .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
 
                 Text(player.track.artist)
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
@@ -228,6 +226,8 @@ struct OverlayView: View {
                     .truncationMode(.tail)
                     .frame(width: 82, alignment: .trailing)
                     .shadow(color: .black.opacity(0.30), radius: 2, x: 0, y: 1)
+                    .contentShape(Rectangle())
+                    .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
             }
             .frame(width: metrics.innerWidth, alignment: .leading)
 
@@ -255,24 +255,41 @@ struct OverlayView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var trackInfo: some View {
+    private func bigMetadataHeader(metrics: OverlayMetrics) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(player.track.title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
+            HStack(alignment: .top, spacing: 8) {
+                Text(player.track.title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
+                    .contentShape(Rectangle())
+                    .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
 
-            Text(player.track.artist)
-                .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary.opacity(0.92))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                volumeControl
+                    .frame(width: 62, height: 13, alignment: .topTrailing)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Text(player.track.artist)
+                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary.opacity(0.92))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                    .contentShape(Rectangle())
+                    .panelSurfaceInteraction(window: $overlayWindow, openSpotify: openSpotify)
+
+                Text(timePairString(position: scrubPosition, duration: player.track.duration))
+                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: 72, alignment: .trailing)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: metrics.contentWidth, alignment: .leading)
     }
 
     private func controls(
@@ -338,6 +355,102 @@ struct OverlayView: View {
 
     private func timePairString(position: Double, duration: Double) -> String {
         "\(timeString(position))/\(timeString(duration))"
+    }
+
+    private func openSpotify() {
+        if let runningApp = NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.spotify.client")
+            .first {
+            runningApp.activate(options: [])
+            return
+        }
+
+        if let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.spotify.client") {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
+            return
+        }
+
+        if let spotifyURL = URL(string: "spotify:") {
+            NSWorkspace.shared.open(spotifyURL)
+        }
+    }
+}
+
+private struct WindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            onResolve(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onResolve(nsView.window)
+        }
+    }
+}
+
+private struct PanelSurfaceInteraction: ViewModifier {
+    @Binding var window: NSWindow?
+    let openSpotify: () -> Void
+
+    @State private var dragStartOrigin: NSPoint?
+    @State private var didDrag = false
+
+    func body(content: Content) -> some View {
+        content.gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if dragStartOrigin == nil {
+                        dragStartOrigin = window?.frame.origin
+                        didDrag = false
+                    }
+
+                    guard movementDistance(for: value) > 3,
+                          let dragStartOrigin,
+                          let window else {
+                        return
+                    }
+
+                    didDrag = true
+                    window.setFrameOrigin(
+                        NSPoint(
+                            x: dragStartOrigin.x + value.translation.width,
+                            y: dragStartOrigin.y - value.translation.height
+                        )
+                    )
+                }
+                .onEnded { value in
+                    let shouldOpenSpotify = !didDrag && movementDistance(for: value) <= 3
+                    dragStartOrigin = nil
+                    didDrag = false
+
+                    if shouldOpenSpotify {
+                        openSpotify()
+                    }
+                }
+        )
+    }
+
+    private func movementDistance(for value: DragGesture.Value) -> CGFloat {
+        let width = value.translation.width
+        let height = value.translation.height
+        return sqrt((width * width) + (height * height))
+    }
+}
+
+private extension View {
+    func panelSurfaceInteraction(
+        window: Binding<NSWindow?>,
+        openSpotify: @escaping () -> Void
+    ) -> some View {
+        modifier(PanelSurfaceInteraction(window: window, openSpotify: openSpotify))
     }
 }
 
