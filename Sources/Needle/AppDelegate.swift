@@ -124,12 +124,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func configureMenuBarItem(player: SpotifyPlayer) {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.isVisible = true
         self.statusItem = statusItem
 
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: "Needle")
-            image?.isTemplate = true
-            button.image = image
+            button.image = Self.menuBarIcon()
             button.imagePosition = .imageOnly
             button.appearsDisabled = false
             button.contentTintColor = .labelColor
@@ -325,6 +324,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private static let overlayOriginXKey = "Needle.overlayOriginX"
     private static let overlayOriginYKey = "Needle.overlayOriginY"
+
+    private static func menuBarIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.lockFocus()
+        defer {
+            image.unlockFocus()
+            image.isTemplate = true
+            image.accessibilityDescription = "Needle"
+        }
+
+        NSColor.black.setStroke()
+
+        let record = NSBezierPath(ovalIn: NSRect(x: 3.5, y: 4.5, width: 9, height: 9))
+        record.lineWidth = 1.3
+        record.stroke()
+
+        let spindle = NSBezierPath(ovalIn: NSRect(x: 7.1, y: 8.1, width: 1.8, height: 1.8))
+        spindle.lineWidth = 1
+        spindle.stroke()
+
+        let arm = NSBezierPath()
+        arm.move(to: NSPoint(x: 13.8, y: 13.2))
+        arm.line(to: NSPoint(x: 8.8, y: 8.9))
+        arm.lineCapStyle = .round
+        arm.lineWidth = 1.8
+        arm.stroke()
+
+        let tip = NSBezierPath()
+        tip.move(to: NSPoint(x: 8.6, y: 8.7))
+        tip.line(to: NSPoint(x: 7.6, y: 6.2))
+        tip.lineCapStyle = .round
+        tip.lineWidth = 1.3
+        tip.stroke()
+
+        let head = NSBezierPath(
+            roundedRect: NSRect(x: 12.3, y: 12.1, width: 3.3, height: 2.4),
+            xRadius: 0.8,
+            yRadius: 0.8
+        )
+        head.lineWidth = 1.2
+        head.stroke()
+
+        return image
+    }
 
     private static func truncatedMenuTitle(_ value: String) -> String {
         let limit = 54
