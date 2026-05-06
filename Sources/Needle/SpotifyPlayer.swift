@@ -151,7 +151,7 @@ private final class AppleScriptRunner {
 
         return TrackState(
             title: parts[0],
-            artist: parts[1],
+            artist: firstArtist(from: parts[1]),
             album: parts[2],
             artworkURL: URL(string: parts[3]),
             duration: durationMS / 1000,
@@ -160,6 +160,46 @@ private final class AppleScriptRunner {
             isPlaying: parts[6] == "true",
             isAvailable: true
         )
+    }
+
+    private static func firstArtist(from value: String) -> String {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return value
+        }
+
+        for separator in [" feat. ", " ft. ", " featuring ", " with ", " x ", ";"] {
+            if let range = trimmedValue.range(of: separator, options: [.caseInsensitive]) {
+                return String(trimmedValue[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        if let range = trimmedValue.range(of: ", "),
+           shouldSplitCommaArtist(trimmedValue, after: range.upperBound) {
+            return String(trimmedValue[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return trimmedValue
+    }
+
+    private static func shouldSplitCommaArtist(_ value: String, after index: String.Index) -> Bool {
+        let remainder = value[index...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !remainder.isEmpty else {
+            return false
+        }
+
+        let protectedSingleArtistPrefixes = [
+            "the creator",
+            "the machine",
+            "wind",
+            "wind & fire"
+        ]
+        let normalizedRemainder = remainder.lowercased()
+        if protectedSingleArtistPrefixes.contains(where: { normalizedRemainder.hasPrefix($0) }) {
+            return false
+        }
+
+        return true
     }
 
     private static let trackScript = """

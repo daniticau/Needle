@@ -48,26 +48,11 @@ enum OverlayContentMode: String {
 
 final class OverlaySettings: ObservableObject {
     @Published private(set) var overlaySize: NSSize
-    @Published var rotatesLongText: Bool {
-        didSet {
-            UserDefaults.standard.set(rotatesLongText, forKey: Self.rotatesLongTextKey)
-        }
-    }
-
-    private static let rotatesLongTextKey = "Needle.rotatesLongText"
 
     init() {
-        let defaults = UserDefaults.standard
-
         overlaySize = OverlayPositionStore.savedSize()
             .map(OverlaySizeRules.clamped(_:))
             ?? OverlaySizeRules.defaultSize
-
-        if defaults.object(forKey: Self.rotatesLongTextKey) != nil {
-            rotatesLongText = defaults.bool(forKey: Self.rotatesLongTextKey)
-        } else {
-            rotatesLongText = true
-        }
     }
 
     func setOverlaySize(_ size: NSSize, persist: Bool = true) {
@@ -181,7 +166,7 @@ struct OverlayMetrics {
         case .medium:
             return min(12, max(8, innerWidth * 0.045))
         case .full:
-            return min(20, max(14, innerWidth * 0.10))
+            return min(12, max(8, innerWidth * 0.04))
         }
     }
 
@@ -290,10 +275,6 @@ struct OverlayView: View {
         }
         .frame(width: metrics.width, height: metrics.height)
         .contextMenu {
-            Button(settings.rotatesLongText ? "Disable Text Rotation" : "Enable Text Rotation") {
-                settings.rotatesLongText.toggle()
-            }
-            Divider()
             Button("Quit Needle") {
                 NSApp.terminate(nil)
             }
@@ -404,9 +385,8 @@ struct OverlayView: View {
 
     private func mediumLayout(metrics: OverlayMetrics) -> some View {
         let titleHeight: CGFloat = metrics.mediumTitleHeight
-        let artistHeight: CGFloat = metrics.mediumValue(compact: 10, regular: 13)
-        let titleFontSize: CGFloat = metrics.mediumValue(compact: 11.5, regular: 13)
-        let artistFontSize: CGFloat = metrics.mediumValue(compact: 9.2, regular: 10.5)
+        let artistHeight: CGFloat = titleHeight
+        let metadataFontSize: CGFloat = metrics.mediumValue(compact: 11.5, regular: 13)
         let rowSpacing: CGFloat = metrics.mediumValue(compact: 5, regular: 8)
         let buttonSpacing: CGFloat = metrics.mediumValue(compact: 4, regular: 6)
         let buttonScale = ControlButtonScale(
@@ -426,29 +406,29 @@ struct OverlayView: View {
 
         return VStack(alignment: .leading, spacing: metrics.mediumRowGap) {
             HStack(alignment: .top, spacing: 8) {
-                rotatingTrackText(
+                trackText(
                     player.track.title,
-                    font: .system(size: titleFontSize, weight: .semibold, design: .rounded),
+                    font: .system(size: metadataFontSize, weight: .semibold, design: .rounded),
                     foregroundStyle: AnyShapeStyle(.primary),
                     height: titleHeight,
                     alignment: .leading,
-                    shadow: TrackTextShadow(color: .black.opacity(0.40), radius: 2, x: 0, y: 1)
+                    shadow: TextShadow(color: .black.opacity(0.40), radius: 2, x: 0, y: 1)
                 )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
 
-                rotatingTrackText(
+                trackText(
                     player.track.artist,
-                    font: .system(size: artistFontSize, weight: .medium, design: .rounded),
+                    font: .system(size: metadataFontSize, weight: .medium, design: .rounded),
                     foregroundStyle: AnyShapeStyle(.secondary.opacity(0.92)),
                     height: artistHeight,
                     alignment: .trailing,
-                    shadow: TrackTextShadow(color: .black.opacity(0.30), radius: 2, x: 0, y: 1)
+                    shadow: TextShadow(color: .black.opacity(0.30), radius: 2, x: 0, y: 1)
                 )
                     .frame(width: artistWidth, alignment: .trailing)
                     .contentShape(Rectangle())
             }
-            .frame(width: metrics.innerWidth, alignment: .leading)
+            .frame(width: metrics.innerWidth, alignment: .center)
 
             HStack(alignment: .center, spacing: rowSpacing) {
                 controls(
@@ -476,21 +456,20 @@ struct OverlayView: View {
 
     private func bigMetadataHeader(metrics: OverlayMetrics) -> some View {
         let titleHeight: CGFloat = metrics.isCompactFull ? 14 : 16
-        let artistHeight: CGFloat = metrics.isCompactFull ? 11 : 13
-        let titleFontSize: CGFloat = metrics.isCompactFull ? 11.5 : 13
-        let artistFontSize: CGFloat = metrics.isCompactFull ? 9.5 : 10.5
+        let artistHeight: CGFloat = titleHeight
+        let metadataFontSize: CGFloat = metrics.isCompactFull ? 11.5 : 13
         let timerFontSize: CGFloat = metrics.isCompactFull ? 8.4 : 9.5
         let timerWidth: CGFloat = metrics.isCompactFull ? 62 : 72
 
         return VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .top, spacing: 8) {
-                rotatingTrackText(
+            HStack(alignment: .center, spacing: 8) {
+                trackText(
                     player.track.title,
-                    font: .system(size: titleFontSize, weight: .semibold, design: .rounded),
+                    font: .system(size: metadataFontSize, weight: .semibold, design: .rounded),
                     foregroundStyle: AnyShapeStyle(.primary),
                     height: titleHeight,
                     alignment: .leading,
-                    shadow: TrackTextShadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
+                    shadow: TextShadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
                 )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -503,37 +482,39 @@ struct OverlayView: View {
             }
 
             HStack(alignment: .top, spacing: 8) {
-                rotatingTrackText(
+                trackText(
                     player.track.artist,
-                    font: .system(size: artistFontSize, weight: .medium, design: .rounded),
+                    font: .system(size: metadataFontSize, weight: .medium, design: .rounded),
                     foregroundStyle: AnyShapeStyle(.secondary.opacity(0.92)),
                     height: artistHeight,
                     alignment: .leading,
-                    shadow: TrackTextShadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                    shadow: TextShadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
                 )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
+
+                Color.clear
+                    .frame(width: timerWidth)
+                    .allowsHitTesting(false)
             }
         }
         .frame(width: metrics.contentWidth, alignment: .leading)
     }
 
-    private func rotatingTrackText(
+    private func trackText(
         _ value: String,
         font: Font,
         foregroundStyle: AnyShapeStyle,
         height: CGFloat,
         alignment: Alignment,
-        shadow: TrackTextShadow
+        shadow: TextShadow
     ) -> some View {
-        RotatingTrackText(
+        StaticTrackText(
             value: value,
             font: font,
             foregroundStyle: foregroundStyle,
             height: height,
             alignment: alignment,
-            rotates: settings.rotatesLongText,
-            pauseBetweenRotations: 5,
             shadow: shadow
         )
     }
@@ -848,37 +829,8 @@ private final class PanelResizeView: NSView {
     private var startMouseLocation: NSPoint?
     private var resizeTrackingArea: NSTrackingArea?
 
-    private static let resizeCursor: NSCursor = {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        defer { image.unlockFocus() }
-
-        func drawResizeArrow(color: NSColor, lineWidth: CGFloat) {
-            color.setStroke()
-
-            let path = NSBezierPath()
-            path.lineWidth = lineWidth
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.move(to: NSPoint(x: 4, y: 14))
-            path.line(to: NSPoint(x: 14, y: 4))
-            path.move(to: NSPoint(x: 4, y: 14))
-            path.line(to: NSPoint(x: 4, y: 10))
-            path.move(to: NSPoint(x: 4, y: 14))
-            path.line(to: NSPoint(x: 8, y: 14))
-            path.move(to: NSPoint(x: 14, y: 4))
-            path.line(to: NSPoint(x: 10, y: 4))
-            path.move(to: NSPoint(x: 14, y: 4))
-            path.line(to: NSPoint(x: 14, y: 8))
-            path.stroke()
-        }
-
-        drawResizeArrow(color: .white.withAlphaComponent(0.95), lineWidth: 4)
-        drawResizeArrow(color: .black.withAlphaComponent(0.82), lineWidth: 2)
-
-        return NSCursor(image: image, hotSpot: NSPoint(x: 9, y: 9))
-    }()
+    private static let hoverCursor = NSCursor.openHand
+    private static let draggingCursor = NSCursor.closedHand
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -903,7 +855,14 @@ private final class PanelResizeView: NSView {
 
         let trackingArea = NSTrackingArea(
             rect: bounds,
-            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+            options: [
+                .activeAlways,
+                .enabledDuringMouseDrag,
+                .inVisibleRect,
+                .mouseEnteredAndExited,
+                .mouseMoved,
+                .cursorUpdate
+            ],
             owner: self
         )
         addTrackingArea(trackingArea)
@@ -914,16 +873,25 @@ private final class PanelResizeView: NSView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: Self.resizeCursor)
+        addCursorRect(bounds, cursor: Self.hoverCursor)
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        window?.acceptsMouseMovedEvents = true
         window?.invalidateCursorRects(for: self)
     }
 
+    override func cursorUpdate(with event: NSEvent) {
+        updateCursor(isDragging: startFrame != nil)
+    }
+
     override func mouseEntered(with event: NSEvent) {
-        Self.resizeCursor.set()
+        updateCursor(isDragging: startFrame != nil)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateCursor(isDragging: false)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -931,12 +899,13 @@ private final class PanelResizeView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        Self.resizeCursor.set()
+        updateCursor(isDragging: true)
         startFrame = window?.frame
         startMouseLocation = NSEvent.mouseLocation
     }
 
     override func mouseDragged(with event: NSEvent) {
+        updateCursor(isDragging: true)
         resizeWindow(persist: false)
     }
 
@@ -944,6 +913,20 @@ private final class PanelResizeView: NSView {
         resizeWindow(persist: true)
         startFrame = nil
         startMouseLocation = nil
+
+        if bounds.contains(convert(event.locationInWindow, from: nil)) {
+            updateCursor(isDragging: false)
+        } else {
+            NSCursor.arrow.set()
+        }
+    }
+
+    private func updateCursor(isDragging: Bool) {
+        if isDragging {
+            Self.draggingCursor.set()
+        } else {
+            Self.hoverCursor.set()
+        }
     }
 
     private var shouldHandleCurrentEvent: Bool {
@@ -1109,58 +1092,37 @@ private final class PanelContentInteractionView: NSView {
     }
 }
 
-private struct TrackTextShadow {
+private struct TextShadow {
     let color: Color
     let radius: CGFloat
     let x: CGFloat
     let y: CGFloat
 }
 
-private struct RotatingTrackText: View {
+private struct StaticTrackText: View {
     let value: String
     let font: Font
     let foregroundStyle: AnyShapeStyle
     let height: CGFloat
     let alignment: Alignment
-    let rotates: Bool
-    let pauseBetweenRotations: TimeInterval
-    let shadow: TrackTextShadow
+    let shadow: TextShadow
 
     @State private var containerWidth: CGFloat = 0
     @State private var textWidth: CGFloat = 0
-    @State private var offset: CGFloat = 0
-    @State private var trailingFadeAmount: Double = 1
 
     private let trailingFadeWidth: CGFloat = 18
 
-    private var trailingMaskEndOpacity: Double {
-        1 - (trailingFadeAmount * 0.82)
-    }
-
-    private var scrollDistance: CGFloat {
-        max(0, textWidth - containerWidth)
-    }
-
-    private var shouldRotate: Bool {
-        rotates && textWidth > containerWidth + 1
-    }
-
-    private var animationKey: RotatingTextAnimationKey {
-        RotatingTextAnimationKey(
-            value: value,
-            rotates: rotates,
-            containerWidth: containerWidth.rounded(.toNearestOrAwayFromZero),
-            textWidth: textWidth.rounded(.toNearestOrAwayFromZero)
-        )
+    private var shouldFadeTail: Bool {
+        textWidth > containerWidth + 1
     }
 
     var body: some View {
         GeometryReader { proxy in
-            visibleText
-                .frame(width: max(proxy.size.width, 1), height: height, alignment: shouldRotate ? .leading : alignment)
-                .clipped()
+            let availableWidth = max(proxy.size.width, 1)
+
+            textContent(availableWidth: availableWidth)
                 .onAppear {
-                    containerWidth = max(proxy.size.width, 1)
+                    containerWidth = availableWidth
                 }
                 .onChange(of: proxy.size.width) { width in
                     containerWidth = max(width, 1)
@@ -1168,33 +1130,27 @@ private struct RotatingTrackText: View {
         }
         .frame(height: height)
         .background(textWidthReader)
-        .task(id: animationKey) {
-            await runRotationLoop()
-        }
     }
 
     @ViewBuilder
-    private var visibleText: some View {
-        if shouldRotate {
-            Text(value)
-                .font(font)
-                .foregroundStyle(foregroundStyle)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
-                .offset(x: offset)
-                .frame(width: max(textWidth, containerWidth), height: height, alignment: .leading)
-                .frame(width: max(containerWidth, 1), height: height, alignment: .leading)
+    private func textContent(availableWidth: CGFloat) -> some View {
+        let text = Text(value)
+            .font(font)
+            .foregroundStyle(foregroundStyle)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
+
+        if shouldFadeTail {
+            text
+                .frame(width: max(textWidth, availableWidth), height: height, alignment: .leading)
+                .frame(width: availableWidth, height: height, alignment: .leading)
                 .clipped()
-                .mask(trailingFadeMask)
+                .mask(textMask)
         } else {
-            Text(value)
-                .font(font)
-                .foregroundStyle(foregroundStyle)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .shadow(color: shadow.color, radius: shadow.radius, x: shadow.x, y: shadow.y)
-                .frame(maxWidth: .infinity, maxHeight: height, alignment: alignment)
+            text
+                .frame(width: availableWidth, height: height, alignment: alignment)
+                .clipped()
         }
     }
 
@@ -1206,93 +1162,42 @@ private struct RotatingTrackText: View {
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(
-                        key: RotatingTextWidthPreferenceKey.self,
+                        key: StaticTrackTextWidthPreferenceKey.self,
                         value: proxy.size.width
                     )
                 }
             )
             .hidden()
-            .onPreferenceChange(RotatingTextWidthPreferenceKey.self) { width in
+            .onPreferenceChange(StaticTrackTextWidthPreferenceKey.self) { width in
                 textWidth = max(width, 0)
             }
     }
 
-    private var trailingFadeMask: some View {
-        HStack(spacing: 0) {
+    @ViewBuilder
+    private var textMask: some View {
+        if shouldFadeTail {
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(.black)
+                    .frame(width: max(containerWidth - trailingFadeWidth, 0))
+
+                LinearGradient(
+                    colors: [.black, .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: trailingFadeWidth)
+            }
+            .frame(width: max(containerWidth, 1), height: height, alignment: .leading)
+        } else {
             Rectangle()
                 .fill(.black)
-                .frame(width: max(containerWidth - trailingFadeWidth, 0))
-
-            LinearGradient(
-                colors: [.black, .black.opacity(trailingMaskEndOpacity)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: trailingFadeWidth)
+                .frame(width: max(containerWidth, 1), height: height)
         }
-        .frame(width: max(containerWidth, 1), height: height, alignment: .leading)
-    }
-
-    @MainActor
-    private func runRotationLoop() async {
-        offset = 0
-        trailingFadeAmount = 1
-
-        guard shouldRotate else {
-            return
-        }
-
-        do {
-            try await sleep(seconds: 1.1)
-
-            while !Task.isCancelled {
-                let distance = scrollDistance
-                let duration = rotationDuration(for: distance)
-                let fadeOutDuration = min(0.6, max(0.2, duration * 0.25))
-
-                trailingFadeAmount = 1
-                withAnimation(.linear(duration: duration)) {
-                    offset = -distance
-                }
-
-                try await sleep(seconds: duration - fadeOutDuration)
-
-                withAnimation(.linear(duration: fadeOutDuration)) {
-                    trailingFadeAmount = 0
-                }
-
-                try await sleep(seconds: fadeOutDuration)
-
-                withAnimation(.none) {
-                    offset = 0
-                    trailingFadeAmount = 1
-                }
-
-                try await sleep(seconds: pauseBetweenRotations)
-            }
-        } catch {
-            offset = 0
-            trailingFadeAmount = 1
-        }
-    }
-
-    private func rotationDuration(for distance: CGFloat) -> TimeInterval {
-        min(9.0, max(2.2, TimeInterval(distance / 24)))
-    }
-
-    private func sleep(seconds: TimeInterval) async throws {
-        try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
     }
 }
 
-private struct RotatingTextAnimationKey: Equatable {
-    let value: String
-    let rotates: Bool
-    let containerWidth: CGFloat
-    let textWidth: CGFloat
-}
-
-private struct RotatingTextWidthPreferenceKey: PreferenceKey {
+private struct StaticTrackTextWidthPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {

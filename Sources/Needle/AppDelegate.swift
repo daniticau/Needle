@@ -10,12 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var nowPlayingMenuItem: NSMenuItem?
     private var overlayMenuItem: NSMenuItem?
-    private var rotateLongTextMenuItem: NSMenuItem?
     private var playPauseMenuItem: NSMenuItem?
     private var previousMenuItem: NSMenuItem?
     private var nextMenuItem: NSMenuItem?
     private var trackSubscription: AnyCancellable?
-    private var rotateLongTextSubscription: AnyCancellable?
 
     static func main() {
         let app = NSApplication.shared
@@ -52,7 +50,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
 
         configureMenuBarItem(player: player)
-        configureRotateLongTextSubscription()
         player.start()
     }
 
@@ -92,10 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         player?.nextTrack()
     }
 
-    @objc private func toggleRotateLongText() {
-        settings.rotatesLongText.toggle()
-    }
-
     @objc private func quitNeedle() {
         NSApp.terminate(nil)
     }
@@ -126,17 +119,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayMenuItem.target = self
         menu.addItem(overlayMenuItem)
         self.overlayMenuItem = overlayMenuItem
-
-        menu.addItem(.separator())
-
-        let rotateLongTextMenuItem = NSMenuItem(
-            title: "Rotate Long Text",
-            action: #selector(toggleRotateLongText),
-            keyEquivalent: ""
-        )
-        rotateLongTextMenuItem.target = self
-        menu.addItem(rotateLongTextMenuItem)
-        self.rotateLongTextMenuItem = rotateLongTextMenuItem
 
         menu.addItem(.separator())
 
@@ -171,15 +153,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         updateMenuBarItem(for: player.track)
         updateOverlayMenuItem()
-        updateRotateLongTextMenuItem()
-    }
-
-    private func configureRotateLongTextSubscription() {
-        rotateLongTextSubscription = settings.$rotatesLongText
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateRotateLongTextMenuItem()
-            }
     }
 
     private func updateMenuBarItem(for track: TrackState) {
@@ -204,10 +177,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateOverlayMenuItem() {
         overlayMenuItem?.title = panel?.isVisible == true ? "Hide Overlay" : "Show Overlay"
-    }
-
-    private func updateRotateLongTextMenuItem() {
-        rotateLongTextMenuItem?.state = settings.rotatesLongText ? .on : .off
     }
 
     private static func defaultFrame(for panel: NSPanel) -> NSRect {
